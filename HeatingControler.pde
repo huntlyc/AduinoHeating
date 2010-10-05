@@ -1,5 +1,4 @@
-/* Copyright 2010 Huntly Cameron <huntly [dot] cameron [at] gmail [dot]
-com>
+/* Copyright 2010 Huntly Cameron <huntly [dot] cameron [at] gmail [dot] com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -9,8 +8,7 @@ com>
  *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-implied.
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
@@ -18,6 +16,7 @@ implied.
 #include <SPI.h>
 #include <Ethernet.h>
 #include <OneWire.h>
+#include <avr/pgmspace.h>
 
 //Setup networking.
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
@@ -68,15 +67,14 @@ struct sensorList
 
 struct sensorList _gList;
 
+
 //***** Method Prototypes ****//
 void alterBoilerState();
 void checkZoneTemps();
 String convertToString(double num);
-String constructHTML();
 String constructXML();
 void parseValues(String, struct sensorList *);
 void setNewTemps(String);
-String serviceRequest(Client);
 void updateCurrentTempValues();
 //**** END OF PROTOTYPES ****//
 
@@ -373,74 +371,6 @@ String convertToString(double num)
   return (returnVal);
 }
 
-
-//Function: constructHTML()
-//Params: none
-//Return: String - Containing the raw HTML code to be spat out
-//        to the client.
-String constructHTML()
-{
-  updateCurrentTempValues();
-  String html = "<html><head></head><body><table class=\"datatable\" cellspacing=\"0\" cellpadding=\"2\"><thead><tr><th>Room</th><th>Current (<sup>o</sup>C)</th><th>Target (<sup>o</sup>C)</th><th>Status</th></tr><thead><tbody>";
-
-  for(int i = 0; i < _gList.size; i++)
-  {    
-    //write name
-    html += "<tr><td>";
-    html += _gList.list[i].name;
-    html += "</td>";            
-    
-    //Write current value
-    html += "<td class=\"tmpdata\">";
-    html += convertToString(_gList.list[i].curTemp);
-    html += "</td>";  
-
-    //Write setTemp
-    html += "<td class=\"tmpdata\">";
-    html += _gList.list[i].setTemp;
-    html += "</td>";    
-    
-     //Construct Valve State
-    if(_gList.list[i].isZoneValveOpen)
-    {
-      html +="<td><span class=\"heating\">Heating</span></td></tr>";
-    }
-    else
-    {    
-      html +="<td><span class=\"cooling\">Off<span></td></tr>";
-    }
-  }
-
-  html += "</tbody></table>";
-     
-  //Boiler State
-  html += "<div id=\"boilerInformation\"><h3>System Info</h3>";
-  html +="<p id=\"boilerstate\">Boiler is: ";
-  if(isBoilerOn)
-  {
-     html +="<span id=\"bon\">ON</span>";
-  } 
-  else
-  {
-    html +="<span id=\"boff\">OFF</span>";
-  }
-  html += "</p>";  
-  
-  //Offsets
-  html += "<p id=\"upperoffsetholder\">Upper Offset: <span id=\"upperoffset\">";
-  html += convertToString(UPPER_OFFSET);
-  html += " (<sup>o</sup>C)";
-  html += "</span></p>";
-  html += "<p id=\"loweroffsetholder\">Lower Offset: <span id=\"loweroffset\">";
-  html += convertToString(LOWER_OFFSET);
-  html += " (<sup>o</sup>C)";  
-  html += "</span></p></div>";
-  html += "</body></html>";  
-  
-  return (html);
-}
-
-
 //Function: constructHTML()
 //Params: none
 //Return: String - Containing the raw XML code to be spat out
@@ -583,71 +513,6 @@ void setNewTemps(String requestString)
     }
   }        
 }  
-
-//Function: serviceRequest(Client)
-//Params: Client -- currently connected client
-//Return: void
-//Description:  Takes client request (to set or get values) and
-//              takes the nessecerry action based on that request.
-String serviceRequest(Client client)
-{
-  String requestString = "";
-  String content = "";
-  String action; //get or set
-  char buffer[128]; //buffer to read client headers
-  int index = 0;
-  char c;
-    
-  if(client.connected() && client.available())
-  {
-    //Get Headers
-    do
-    {        
-      c = client.read();
-    
-      if (index < 128)
-      {        
-         buffer[index] = c;
-         index++;
-      }
-    }
-    while (buffer[index-2] != '\r' && buffer[index-1] != '\n');
-      
-    for (int i = 0; i < sizeof(buffer); i++)
-    {
-      requestString += buffer[i];
-    }
-    
-    Serial.println("DEBUG:: ");
-    action = requestString.substring((requestString.indexOf('/') +1), requestString.indexOf('.'));
-    //Check to see if we're updating
-    Serial.println(action);
-  
-    //Do request
-    if (action.equals("set"))    
-    {
-      setNewTemps(requestString); 
-      content = constructHTML();
-    }
-    else if (action.equals("get"))
-    {
-
-      content = constructHTML();
-    }
-    else if (action.equals("xml"))
-    {
-      content = constructXML();
-    }
-    else 
-    {
-      Serial.println("DEBUG:: in invalid");      
-      content = "<html><head><title>n00b</title></head><body><h1 style=\"color: red;\">Invalid Request! RTFM!</h1><h3>Valid Requests:</h3><ul><li>set.html?id=XX&amp;val=YY&amp;id...</li><li>get.html</li><li>xml.html</li></ul></body></html>";
-    }
-
-    return(content);
-
-  }//End of client code
-}
 
 //Function: updateCurrentTempValues()
 //Params: none
@@ -836,28 +701,147 @@ void setup()
       pinMode(_gList.list[i].ledPin, OUTPUT);
     }
   
-    //To be 100% sure, shut off all zone valves
-    closeZoneValve(0); //0 resets the relay board
+ 
+    Serial1.println("F0"); //0 resets the relay board
     updateCurrentTempValues();
 }
 
 void loop()
-{
-    // wait for a new client:
-    Client client = server.available();
-    String data  = "";
-    String returnData="";
-    if (client) //If we have a client wanting something
-    {
-        data = serviceRequest(client);     
-        client.println(data);
-        client.stop();   
+{  
+  Client client = server.available();
+  String html = "";
+  String requestString = "";
+  String content = "";
+  String action; //get or set
+  char buffer[128]; //buffer to read client headers
+  int index = 0;
+  char c;
+    
+  if(client.connected() && client.available())
+  {
+    Serial.println("Client Connected!");
+    //Get Headers
+    do
+    {        
+      c = client.read();
+    
+      if (index < 128)
+      {        
+         buffer[index] = c;
+         index++;
+      }
     }
-    else //keep on truckin'
+    while (buffer[index-2] != '\r' && buffer[index-1] != '\n');
+      
+    for (int i = 0; i < sizeof(buffer); i++)
     {
-        checkZoneTemps();
+      requestString += buffer[i];
+    }
+    
+    Serial.println("DEBUG:: ");
+    action = requestString.substring((requestString.indexOf('/') +1), requestString.indexOf('.'));
+    //Check to see if we're updating
+    Serial.println(action);
+  
+    //Do request
+    if (action.equals("set"))    
+    {
+      setNewTemps(requestString); 
+      client.println("HTTP/1.0 200 OK\nServer: arduino\nCache-Control: no-store, no-cache, must-revalidate\nPragma: no-cache\nConnection: close\nContent-Type: text/html\n");
+      client.print("<!DOCTYPE html PUBLIC  \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">");
+      client.print("<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\"><head><meta http-equiv=\"Content-type\" content=\"text/html;charset=UTF-8\"><title>House Temps</title></head>");
+      client.print("<body><h1>Data Received</h1><p>Go to <a href=\"http://172.16.11.220/get.html\">http://172.16.11.220/get.html</a> to view house status</p></body></html>");      
+    }
+    else if (action.equals("get"))
+    {
+      client.println("HTTP/1.0 200 OK\nServer: arduino\nCache-Control: no-store, no-cache, must-revalidate\nPragma: no-cache\nConnection: close\nContent-Type: text/html\n");
+      //constructHTML(client);
+      client.print("<!DOCTYPE html PUBLIC  \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">");
+      client.print("<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\"><head><meta http-equiv=\"Content-type\" content=\"text/html;charset=UTF-8\"><title>House Temps</title></head>");
+      client.print("<body><table class=\"datatable\"><thead><tr><th>Room</th><th>Current (<sup>o</sup>C)</th><th>Target  (<sup>o</sup>C)</th><th>Status</th></tr></thead><tbody>");
+
+      for(int i = 0; i < _gList.size; i++)
+      {    
+        //write name
+        html += "<tr><td>";
+        html += _gList.list[i].name;
+        html += "</td>";            
+    
+        //Write current value
+        html += "<td class=\"tmpdata\">";
+        html += convertToString(_gList.list[i].curTemp);
+        html += "</td>";  
+
+        //Write setTemp
+        html += "<td class=\"tmpdata\">";
+        html += _gList.list[i].setTemp;
+        html += "</td>";    
+      
+         //Construct Valve State
+        if(_gList.list[i].isZoneValveOpen)
+        {
+          html +="<td><span class=\"heating\">Heating</span></td></tr>";
+        }
+        else
+        {    
+          html +="<td><span class=\"cooling\">Off</span></td></tr>";
+        }
         
+        client.print(html);
+        html = "";
+      }
+
+      client.print("</tbody></table>");
+         
+      //Boiler State
+      client.print("<div id=\"boilerInformation\"><h3>System Info</h3>");
+      client.print("<p id=\"boilerstate\">Boiler is: ");
+      if(isBoilerOn)
+      {
+         client.print("<span id=\"bon\">ON</span>");
+      } 
+      else
+      {
+        client.print("<span id=\"boff\">OFF</span>");
+      }
+      client.print("</p>");  
+  
+      html = "";
+      //Offsets
+      html += "<p id=\"upperoffsetholder\">Upper Offset: <span id=\"upperoffset\">";
+      html += convertToString(UPPER_OFFSET);
+      html += " (<sup>o</sup>C)";
+      html += "</span></p>";
+      html += "<p id=\"loweroffsetholder\">Lower Offset: <span id=\"loweroffset\">";
+      html += convertToString(LOWER_OFFSET);
+      html += " (<sup>o</sup>C)";  
+      html += "</span></p></div>";
+      html += "</body></html>";  
+  
+      client.print(html);    
+    
+      html = "";    
+      Serial.print("HTML LENGTH (inc headers): ");
+      Serial.println(content.length());
     }
+    else if (action.equals("xml"))
+    {
+      content = "HTTP/1.0 200 OK\nServer: arduino\nCache-Control: no-store, no-cache, must-revalidate\nPragma: no-cache\nConnection: close\nContent-Type: text/xml\n";
+      client.println(content);
+
+      content = constructXML();
+      client.println(content);
+
+    }
+
+    client.flush();
+    client.stop();
+  
+  }
+  else //keep on truckin'
+  {
+      checkZoneTemps();      
+  }
 }
 
 
