@@ -18,7 +18,7 @@
 #include <OneWire.h>
 #include <avr/pgmspace.h>
 
-//Setup networking.
+//Set up networking.
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 byte ip[] = { 172,16,11, 220 };
 byte gateway[] = { 172,16,11, 1 };
@@ -42,7 +42,7 @@ const int OUTSIDE = 8;
 
 boolean isBoilerOn = false;
 
-//One Wire Setup
+//One Wire Set up
 OneWire ds(6);  // on pin 10
 const int ADDRESS_SIZE = 8;
 //structs
@@ -67,8 +67,6 @@ struct sensorList
 
 struct sensorList _gList;
 
-
-//***** Method Prototypes ****//
 void alterBoilerState();
 void checkZoneTemps();
 String convertToString(double num);
@@ -76,7 +74,7 @@ String constructXML();
 void parseValues(String, struct sensorList *);
 void setNewTemps(String);
 void updateCurrentTempValues();
-//**** END OF PROTOTYPES ****//
+
 
 
 //********************************  USER DEFINED METHODS***********************//
@@ -264,7 +262,7 @@ void doKitchenAndBathroom()
   
   if (somethingAltered)
   {
-    Serial.println("SOMETHING ALTERED IN KITCHEN AND BATHROOM METHD");
+    Serial.println("SOMETHING ALTERED IN KITCHEN AND BATHROOM METHOD");
   }
 }
 
@@ -326,8 +324,8 @@ void checkZoneTemps()
     }
     else if (_gList.list[i].id != OUTSIDE) //We don't want to heat the outside world
     {
-      //If too hot, shutoff zonevalve and LED.
-      //else if too cold, turn on zonevalve and put on led.
+      //If too hot, shut off zone valve and LED.
+      //else if too cold, turn on zone valve and put on led.
       if ((_gList.list[i].curTemp > (_gList.list[i].setTemp + UPPER_OFFSET)) && 
           (_gList.list[i].isZoneValveOpen)) 
       {        
@@ -420,7 +418,7 @@ String constructXML()
 //Params: String paramList - String of params: id=4&val=20&id=10&val=20 and so on.
 //        struct sensorList* - Pointer to a sensorList struct which willbe populated (pass by-reference)
 //Returns: void
-//Description: Takes ID's and Values out of request string and populatesa
+//Description: Takes ID's and Values out of request string and populates
 //             sensorList struc with these values.
 void parseValues(String qList, struct sensorList *myList)
 {
@@ -444,7 +442,7 @@ void parseValues(String qList, struct sensorList *myList)
       /**
        * NOTE!!  There is no sanity checking on the paramlist,
        *         I'm assuming that its id, value, id, value e.t.c
-       *         For your own impementation needs, you might want to
+       *         For your own implementation needs, you might want to
        *         alter this.... Especially if its internet facing!
        */
       //get id
@@ -455,7 +453,7 @@ void parseValues(String qList, struct sensorList *myList)
       tmpStr =  qList.substring(startPoint, endPoint);
       tmpStr.toCharArray(value, sizeof(tmpStr));
       
-      //NOTE!  I'm blindly assuming that the id value is infact an integer!
+      //NOTE!  I'm blindly assuming that the id value is in fact an integer!
       s1.id = atoi(value);
       
       //get val
@@ -465,7 +463,7 @@ void parseValues(String qList, struct sensorList *myList)
       tmpStr =  qList.substring(startPoint, endPoint);
       tmpStr.toCharArray(value, sizeof(tmpStr));
       
-      //NOTE!  Again, I'm blindly assuming that the value is infact an integer!
+      //NOTE!  Again, I'm blindly assuming that the value is in fact an integer!
       s1.setTemp = atoi(value);      
       (*myList).list[arraySize] = s1;
 
@@ -505,7 +503,7 @@ void setNewTemps(String requestString)
     //Scan the _gList for the current ID    
     for(int j = 0; j < _gList.size; j++)
     {  
-      //If the ID is valid and the value is different, then write thenew value.
+      //If the ID is valid and the value is different, then write the new value.
       if((sList.list[i].id == _gList.list[j].id))
       {
         _gList.list[j].setTemp = sList.list[i].setTemp;            
@@ -578,7 +576,7 @@ void updateCurrentTempValues()
       {
         TReadingd *= -1.0;
       }
-      curTemp = ((6 * TReadingd) + TReadingd / 4) / 100 ;    // multiplyby (100 * 0.0625) or 6.25
+      curTemp = ((6 * TReadingd) + TReadingd / 4) / 100 ;    // multiply by (100 * 0.0625) or 6.25
       
       for(int i = 0; i < _gList.size; i++)
       {
@@ -596,13 +594,13 @@ void updateCurrentTempValues()
 //***************************** ARDUINO METHODS ***************************//
 void setup()
 {
-    // initialize the ethernet device
+    // initialize the Ethernet device
     Ethernet.begin(mac, ip, gateway, subnet);
     // start listening for clients
     server.begin();
     // open the serial port
     Serial.begin(9600);
-    Serial1.begin(9600); //Serial 1 for the relayboard
+    Serial1.begin(9600); //Serial 1 for the relay board
     pinMode(13, OUTPUT);
  
     //Assign stack space and populate structs
