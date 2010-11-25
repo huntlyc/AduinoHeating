@@ -18,7 +18,6 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <OneWire.h>
-#include <avr/pgmspace.h>
 
 //Set up networking.
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
@@ -55,6 +54,7 @@ typedef struct sensor
   String name; //room name
   double curTemp;  //temperature its currently at
   double prevTemp; //previous recorded temperature
+  double correctionOffset;
   int setTemp; //target temperature
   boolean isZoneValveOpen; //room zone valve
   int ledPin; //ledpin id for wall mount
@@ -578,7 +578,12 @@ void updateCurrentTempValues()
       {
         TReadingd *= -1.0;
       }
+
       curTemp = ((6 * TReadingd) + TReadingd / 4) / 100 ;    // multiply by (100 * 0.0625) or 6.25
+
+      //Due to sensors being close to walls, windows etc.  We've calculated
+      //offsets which should be applied to read the true temperature.
+      curTemp  -= _gList.list[i].correctionOffset;
       
       for(int i = 0; i < _gList.size; i++)
       {
@@ -613,6 +618,7 @@ void setup()
     memcpy(scott.sensorId, tmp1, 8);
     scott.name = "Scott";
     scott.prevTemp = 20;  
+    scott.correctionOffset = 0;
     scott.setTemp = 5;
     scott.isZoneValveOpen = false;
     scott.ledPin = 31;
@@ -624,6 +630,7 @@ void setup()
     byte tmp2[] = {0x28, 0x2A, 0x82, 0xBB, 0x02, 0x00, 0x00, 0x65};
     memcpy(huntly.sensorId, tmp2, 8);
     huntly.prevTemp = 20;
+    huntly.correctionOffset = 0;
     huntly.setTemp = 5;  
     huntly.isZoneValveOpen = false;  
     huntly.ledPin = 32;
@@ -634,6 +641,7 @@ void setup()
     memcpy(office.sensorId, tmp3, 8);
     office.name = "The Office";
     office.prevTemp = 20;
+    office.correctionOffset = -2.46;
     office.setTemp = 5;  
     office.isZoneValveOpen = false;  
     office.ledPin = 33;    
@@ -644,6 +652,7 @@ void setup()
     memcpy(hallway.sensorId, tmp4, 8);
     hallway.name = "Hallway";
     hallway.prevTemp = 20;
+    hallway.correctionOffset = 0;
     hallway.setTemp = 5;
     hallway.curTemp = 5;
     hallway.isZoneValveOpen = false;  
@@ -655,6 +664,7 @@ void setup()
     memcpy(bathroom.sensorId, tmp5, 8);
     bathroom.name = "Bathroom";
     bathroom.prevTemp = 20;
+    bathroom.correctionOffset = 0;
     bathroom.setTemp = 5;  
     bathroom.curTemp = 5;  
     bathroom.isZoneValveOpen = false;  
@@ -666,6 +676,7 @@ void setup()
     memcpy(kitchen.sensorId, tmp6, 8);  
     kitchen.name = "Kitchen";
     kitchen.prevTemp = 20;
+    kitchen.correctionOffset = 0;
     kitchen.setTemp = 5;  
     kitchen.curTemp = 5;  
     kitchen.isZoneValveOpen = false;  
@@ -677,6 +688,7 @@ void setup()
     memcpy(livingroom.sensorId, tmp7, 8);
     livingroom.name = "Living Room";
     livingroom.prevTemp = 20;
+    livingroom.correctionOffset = 0;
     livingroom.setTemp = 5;  
     livingroom.curTemp = 5;  
     livingroom.isZoneValveOpen = false;  
@@ -688,6 +700,7 @@ void setup()
     memcpy(outside.sensorId, tmp8, 8);  
     outside.name = "Outside";
     outside.prevTemp = 20;
+    outside.correctionOffset = -3.0;
     outside.setTemp = 5;  
     outside.curTemp = 5;  
     outside.isZoneValveOpen = false;  
