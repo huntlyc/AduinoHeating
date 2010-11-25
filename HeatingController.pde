@@ -1,3 +1,5 @@
+#include <OneWire.h>
+
 /* Copyright 2010 Huntly Cameron <huntly [dot] cameron [at] gmail [dot] com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
