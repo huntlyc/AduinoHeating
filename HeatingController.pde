@@ -210,6 +210,13 @@ String convertToString(double num)
   whole = tmp / 100;  
   fract = tmp % 100;
   
+  //With negative numbers, output showed something like -1.-56,
+  //Make the remainder (fract: -56) positive if it is negative.
+  if(fract < 0)
+  {
+    fract *= -1;    
+  }
+  
   //package as string
   returnVal += whole;
   returnVal += ".";
@@ -401,8 +408,9 @@ void updateCurrentTempValues()
   double TReadingd;
   boolean isValidAddr = false;
   double curTemp;
+  boolean isAddrFound = false;
 
-  for (int count = 0; count < 8; count++)
+  for (int count = 0; count < _gList.size; count++)
   {
     byte i;
     byte present = 0;
@@ -410,21 +418,24 @@ void updateCurrentTempValues()
     byte addr[8];
     int id = 0;
 
-    if ( !ds.search(addr)) {
+    if ( !ds.search(addr)) 
+    {
         ds.reset_search();
-        return;
+    }
+    else
+    {
+      isAddrFound = true;
     }
     
-    for(int i = 0; i < _gList.size; i++)
-    {      
-      if(memcmp(addr, _gList.list[i].sensorId, ADDRESS_SIZE) == 0)
-      {                
-        isValidAddr = true;    
-        id = _gList.list[i].id;        
-      }      
-    }
     
-    if(isValidAddr)
+    if(memcmp(addr, _gList.list[count].sensorId, ADDRESS_SIZE) == 0)
+    {           
+      isValidAddr = true;    
+      id = _gList.list[count].id;        
+    }     
+    
+    
+    if(isAddrFound && isValidAddr)
     {
       if ( OneWire::crc8( addr, 7) != addr[7] ||  addr[0] != 0x28)
       {
@@ -460,22 +471,18 @@ void updateCurrentTempValues()
       //offsets which should be applied to read the true temperature.
       if(CURRENT_SEASON.compareTo("winter") == 0)
       {
-        curTemp  -= _gList.list[i].winterOffset;
+        curTemp  -= _gList.list[count].winterOffset;
       }
       else if(CURRENT_SEASON.compareTo("summer") == 0)
       {
-        curTemp  -= _gList.list[i].summerOffset;        
+        curTemp  -= _gList.list[count].summerOffset;        
       }
       
-      for(int i = 0; i < _gList.size; i++)
-      {
-        if (id == _gList.list[i].id)
-        {
-          _gList.list[i].prevTemp = _gList.list[i].curTemp;
-          _gList.list[i].curTemp = curTemp;          
-        }
-      }
+      _gList.list[count].prevTemp = _gList.list[count].curTemp;
+      _gList.list[count].curTemp = curTemp;       
+
     }
+    
     isValidAddr = false; //reset for next itter
   }
 }
@@ -500,8 +507,8 @@ void setup()
     memcpy(scott.sensorId, tmp1, 8);
     scott.name = "Scott";
     scott.prevTemp = 20;  
-    scott.winterOffset = 0;
-    scott.summerOffset = 0;
+    scott.winterOffset = -1.5;
+    scott.summerOffset = 1.5;
     scott.setTemp = 5;
     scott.isZoneValveOpen = false;
     scott.ledPin = 31;
@@ -513,8 +520,8 @@ void setup()
     byte tmp2[] = {0x28, 0x2A, 0x82, 0xBB, 0x02, 0x00, 0x00, 0x65};
     memcpy(huntly.sensorId, tmp2, 8);
     huntly.prevTemp = 20;
-    huntly.winterOffset = 0;
-    huntly.summerOffset = 0;
+    huntly.winterOffset = -1.9;
+    huntly.summerOffset = 1.5;
     huntly.setTemp = 5;  
     huntly.isZoneValveOpen = false;  
     huntly.ledPin = 32;
@@ -525,8 +532,8 @@ void setup()
     memcpy(office.sensorId, tmp3, 8);
     office.name = "The Office";
     office.prevTemp = 20;
-    office.winterOffset = -2.46;
-    office.summerOffset = 0;    
+    office.winterOffset = -3.0;
+    office.summerOffset = 1.5;    
     office.setTemp = 5;  
     office.isZoneValveOpen = false;  
     office.ledPin = 33;    
@@ -589,15 +596,15 @@ void setup()
     memcpy(outside.sensorId, tmp8, 8);  
     outside.name = "Outside";
     outside.prevTemp = 20;
-    outside.winterOffset = -3.0;
-    outside.summerOffset = 0;    
+    outside.winterOffset = 2;
+    outside.summerOffset = -2;    
     outside.setTemp = 5;  
     outside.curTemp = 5;  
     outside.isZoneValveOpen = false;  
     outside.ledPin = 38;
     _gList.list[7] = outside;       
     _gList.size = 8;
-    
+   
     
     for(int i = 0; i < _gList.size; i++)
     {
@@ -688,14 +695,33 @@ void loop()
         html += _gList.list[i].setTemp;
         html += "</td>";    
       
-         //Construct Valve State
-        if(_gList.list[i].isZoneValveOpen)
+       /*
+        *
+        * special case for bathroom
+        *
+        */
+        if((_gList.list[i].name).compareTo("Bathroom") == 0)
         {
-          html +="<td><span class=\"heating\">Heating</span></td></tr>";
+          if(isBoilerOn)
+          {
+            html +="<td><span class=\"heating\">Heating</span></td></tr>";
+          }
+          else
+          {    
+            html +="<td><span class=\"cooling\">Off</span></td></tr>";
+          }
         }
         else
-        {    
-          html +="<td><span class=\"cooling\">Off</span></td></tr>";
+        {
+          //Construct Valve State
+          if(_gList.list[i].isZoneValveOpen)
+          {
+            html +="<td><span class=\"heating\">Heating</span></td></tr>";
+          }
+          else
+          {    
+            html +="<td><span class=\"cooling\">Off</span></td></tr>";
+          }
         }
         
         client.print(html);
