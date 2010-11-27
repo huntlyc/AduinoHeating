@@ -1,5 +1,3 @@
-#include <OneWire.h>
-
 /* Copyright 2010 Huntly Cameron <huntly [dot] cameron [at] gmail [dot] com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +23,9 @@ byte ip[] = { 172,16,11, 220 };
 byte gateway[] = { 172,16,11, 1 };
 byte subnet[] = { 255, 255, 255, 0 };
 Server server(80);
+
+//Season
+String CURRENT_SEASON = "winter";
 
 //Temp Offsets
 const double UPPER_OFFSET = 0.25;
@@ -54,7 +55,8 @@ typedef struct sensor
   String name; //room name
   double curTemp;  //temperature its currently at
   double prevTemp; //previous recorded temperature
-  double correctionOffset;
+  double winterOffset;
+  double summerOffset;
   int setTemp; //target temperature
   boolean isZoneValveOpen; //room zone valve
   int ledPin; //ledpin id for wall mount
@@ -113,161 +115,6 @@ void alterBoilerState()
   }
 }
 
-//Function: doKitchenAndBathroom()
-//Params: none
-//Return: void
-//Description;  Because the bathroom and kitchen share the same heating element
-//              things have to be done differently.  Bellow is scotts "truth table"
-//              to illustrate this.
-//
-//
-//       Scotts Truth Table of Destiny
-//       =============================
-//
-//         +----+----+------+------+
-//         | TB | TK | B-zv | K-zv |
-//         +====+====+======+======+
-//         | Lo | Lo |  ON  |  ON  |
-//         +----+----+------+------+
-//         | Lo | Hi |  ON  |  OFF |
-//         +----+----+------+------+
-//         | Hi | Lo |  ON  |  ON  |
-//         +----+----+------+------+
-//         | Hi | Hi |  OFF |  OFF |
-//         +----+----+------+------+
-//      
-//         Key:
-//         ====
-//         T{B,k} - temp {bathroom, kitchen}
-//         {B,K}-zv - {bathroom, kitchen} Zone Valve
-//      
-
-void doKitchenAndBathroom()
-{
-  boolean kitchenValveOn = _gList.list[KITCHEN].isZoneValveOpen;
-  boolean bathroomValveOn = _gList.list[KITCHEN].isZoneValveOpen;
-  boolean kitchenTooHot = false;
-  boolean bathroomTooHot = false;
-  boolean kitchenTooCold = false;
-  boolean bathroomTooCold = false;
-  
-  //DEBUG
-  boolean somethingAltered = false;
-      
-  //Check to see if kitchen too hot
-  if (_gList.list[KITCHEN].curTemp > (_gList.list[KITCHEN].setTemp + UPPER_OFFSET))
-  {
-    kitchenTooHot = true;
-  }
-      
-  //Check to see if bathroom too hot      
-  if (_gList.list[BATHROOM].curTemp > (_gList.list[BATHROOM].setTemp + UPPER_OFFSET))
-  {
-    bathroomTooHot = true;
-  }
-      
-  if (_gList.list[KITCHEN].curTemp < (_gList.list[KITCHEN].setTemp - LOWER_OFFSET))
-  {
-    kitchenTooCold = true;
-  }
-      
-  if (_gList.list[BATHROOM].curTemp < (_gList.list[BATHROOM].setTemp - LOWER_OFFSET))
-  {
-    bathroomTooCold = true;
-  }
-      
-      
-  //Main logic
-  if(bathroomTooCold && kitchenTooCold)
-  {
-    if(!bathroomValveOn)
-    {
-       _gList.list[BATHROOM].isZoneValveOpen = true;
-       
-       Serial1.print("N");
-       Serial1.println(_gList.list[BATHROOM].id);      
-      
-       somethingAltered = true;    
-    }
-        
-    if(!kitchenValveOn)
-    {
-       _gList.list[KITCHEN].isZoneValveOpen = true;
-       Serial1.print("N");
-       Serial1.println(_gList.list[KITCHEN].id);  
-      
-      
-       somethingAltered = true;      
-    }
-  }
-  else if(bathroomTooCold && kitchenTooHot)
-  {
-    if(!bathroomValveOn)
-    {
-       _gList.list[BATHROOM].isZoneValveOpen = true;
-       Serial1.print("N");
-       Serial1.println(_gList.list[BATHROOM].id);  
-      
-       somethingAltered = true;      
-    }
-    
-    if(kitchenValveOn)
-    {
-       _gList.list[KITCHEN].isZoneValveOpen = false;
-       Serial1.print("F");
-       Serial1.println(_gList.list[KITCHEN].id);  
-      
-       somethingAltered = true;      
-    }
-  }
-  else if(bathroomTooHot && kitchenTooCold)
-  {
-    if(!bathroomValveOn)
-    {
-       _gList.list[BATHROOM].isZoneValveOpen = true;
-       Serial1.print("N");
-       Serial1.println(_gList.list[BATHROOM].id);  
-      
-       somethingAltered = true;      
-    }
-        
-    if(!kitchenValveOn)
-    {
-       _gList.list[KITCHEN].isZoneValveOpen = true;
-       Serial1.print("N");
-       Serial1.println(_gList.list[KITCHEN].id);  
-
-      
-       somethingAltered = true;      
-    }
-  }      
-  else if(bathroomTooHot && kitchenTooHot)
-  {
-    if(bathroomValveOn)
-    {
-       _gList.list[BATHROOM].isZoneValveOpen = false;
-       Serial1.print("F");
-       Serial1.println(_gList.list[BATHROOM].id);  
-      
-       somethingAltered = true;      
-    }
-        
-    if(kitchenValveOn)
-    {
-       _gList.list[KITCHEN].isZoneValveOpen = false;
-       Serial1.print("F");
-       Serial1.println(_gList.list[KITCHEN].id);  
-              
-       somethingAltered = true;
-    }
-  }
-  
-  if (somethingAltered)
-  {
-    Serial.println("SOMETHING ALTERED IN KITCHEN AND BATHROOM METHOD");
-  }
-}
-
 //Function: turnONLED
 //params: int - pinNumber on the arduino for the LED
 //return: void
@@ -320,11 +167,9 @@ void checkZoneTemps()
   
   for (int i = 0; i < _gList.size; i++)
   {
-    if(_gList.list[i].id == BATHROOM || _gList.list[i].id == KITCHEN)
-    {
-      doKitchenAndBathroom();      
-    }
-    else if (_gList.list[i].id != OUTSIDE) //We don't want to heat the outside world
+
+    //We don't want to heat the outside world or bathroom or kitchen, yet.
+    if (_gList.list[i].id != OUTSIDE || _gList.list[i].id != BATHROOM ||  _gList.list[i].id != KITCHEN) 
     {
       //If too hot, shut off zone valve and LED.
       //else if too cold, turn on zone valve and put on led.
@@ -416,13 +261,16 @@ String constructXML()
   return (XML);
   
 }
-//Function: parseValues()
+
+
+
+//Function: parseSetTempValues()
 //Params: String paramList - String of params: id=4&val=20&id=10&val=20 and so on.
 //        struct sensorList* - Pointer to a sensorList struct which willbe populated (pass by-reference)
 //Returns: void
 //Description: Takes ID's and Values out of request string and populates
 //             sensorList struc with these values.
-void parseValues(String qList, struct sensorList *myList)
+void parseSetTempValues(String qList, struct sensorList *myList)
 {
   int arraySize = 0;
   int startPoint = 0;
@@ -497,7 +345,7 @@ void setNewTemps(String requestString)
   qList = requestString.substring(requestString.indexOf('?') +1 , requestString.indexOf(' ', requestString.indexOf('/')));
     
   //Fill up a temp list of sensors with the details from the request
-  parseValues(qList, &sList);
+  parseSetTempValues(qList, &sList);
 
   //For each element in the temp list
   for(int i = 0; i < sList.size; i++)
@@ -513,6 +361,31 @@ void setNewTemps(String requestString)
     }
   }        
 }  
+
+void updateSeason(String requestString)
+{
+  String qList; //query list (params)
+  int startPoint = 0;
+  int endPoint = 0;
+  boolean foundEndOfList = false;
+  String season;
+  
+  //Get the param list
+  qList = requestString.substring(requestString.indexOf('?') +1 , requestString.indexOf(' ', requestString.indexOf('/')));
+  
+  /**
+   * NOTE!!  There is no sanity checking on the paramlist,
+   *         I'm assuming that its 'season=winter' or 'season=summer'
+   *         For your own implementation needs, you might want to
+   *         alter this.... Especially if its internet facing!
+  */
+  startPoint = qList.indexOf('=', endPoint) + 1;
+  endPoint = qList.indexOf('&', startPoint);
+      
+  season =  qList.substring(startPoint, endPoint);
+  
+  CURRENT_SEASON = season;
+}
 
 //Function: updateCurrentTempValues()
 //Params: none
@@ -583,7 +456,14 @@ void updateCurrentTempValues()
 
       //Due to sensors being close to walls, windows etc.  We've calculated
       //offsets which should be applied to read the true temperature.
-      curTemp  -= _gList.list[i].correctionOffset;
+      if(CURRENT_SEASON.compareTo("winter") == 0)
+      {
+        curTemp  -= _gList.list[i].winterOffset;
+      }
+      else if(CURRENT_SEASON.compareTo("summer") == 0)
+      {
+        curTemp  -= _gList.list[i].summerOffset;        
+      }
       
       for(int i = 0; i < _gList.size; i++)
       {
@@ -618,7 +498,8 @@ void setup()
     memcpy(scott.sensorId, tmp1, 8);
     scott.name = "Scott";
     scott.prevTemp = 20;  
-    scott.correctionOffset = 0;
+    scott.winterOffset = 0;
+    scott.summerOffset = 0;
     scott.setTemp = 5;
     scott.isZoneValveOpen = false;
     scott.ledPin = 31;
@@ -630,7 +511,8 @@ void setup()
     byte tmp2[] = {0x28, 0x2A, 0x82, 0xBB, 0x02, 0x00, 0x00, 0x65};
     memcpy(huntly.sensorId, tmp2, 8);
     huntly.prevTemp = 20;
-    huntly.correctionOffset = 0;
+    huntly.winterOffset = 0;
+    huntly.summerOffset = 0;
     huntly.setTemp = 5;  
     huntly.isZoneValveOpen = false;  
     huntly.ledPin = 32;
@@ -641,7 +523,8 @@ void setup()
     memcpy(office.sensorId, tmp3, 8);
     office.name = "The Office";
     office.prevTemp = 20;
-    office.correctionOffset = -2.46;
+    office.winterOffset = -2.46;
+    office.summerOffset = 0;    
     office.setTemp = 5;  
     office.isZoneValveOpen = false;  
     office.ledPin = 33;    
@@ -652,7 +535,8 @@ void setup()
     memcpy(hallway.sensorId, tmp4, 8);
     hallway.name = "Hallway";
     hallway.prevTemp = 20;
-    hallway.correctionOffset = 0;
+    hallway.winterOffset = 0;
+    hallway.summerOffset = 0;
     hallway.setTemp = 5;
     hallway.curTemp = 5;
     hallway.isZoneValveOpen = false;  
@@ -664,7 +548,8 @@ void setup()
     memcpy(bathroom.sensorId, tmp5, 8);
     bathroom.name = "Bathroom";
     bathroom.prevTemp = 20;
-    bathroom.correctionOffset = 0;
+    bathroom.winterOffset = 0;
+    bathroom.summerOffset = 0;
     bathroom.setTemp = 5;  
     bathroom.curTemp = 5;  
     bathroom.isZoneValveOpen = false;  
@@ -676,7 +561,8 @@ void setup()
     memcpy(kitchen.sensorId, tmp6, 8);  
     kitchen.name = "Kitchen";
     kitchen.prevTemp = 20;
-    kitchen.correctionOffset = 0;
+    kitchen.winterOffset = 0;
+    kitchen.summerOffset = 0;
     kitchen.setTemp = 5;  
     kitchen.curTemp = 5;  
     kitchen.isZoneValveOpen = false;  
@@ -688,7 +574,8 @@ void setup()
     memcpy(livingroom.sensorId, tmp7, 8);
     livingroom.name = "Living Room";
     livingroom.prevTemp = 20;
-    livingroom.correctionOffset = 0;
+    livingroom.winterOffset = 0;
+    livingroom.summerOffset = 0;
     livingroom.setTemp = 5;  
     livingroom.curTemp = 5;  
     livingroom.isZoneValveOpen = false;  
@@ -700,7 +587,8 @@ void setup()
     memcpy(outside.sensorId, tmp8, 8);  
     outside.name = "Outside";
     outside.prevTemp = 20;
-    outside.correctionOffset = -3.0;
+    outside.winterOffset = -3.0;
+    outside.summerOffset = 0;    
     outside.setTemp = 5;  
     outside.curTemp = 5;  
     outside.isZoneValveOpen = false;  
@@ -757,7 +645,15 @@ void loop()
     Serial.println(action);
   
     //Do request
-    if (action.equals("set"))    
+    if (action.equals("season"))
+    {
+      updateSeason(requestString);
+      client.println("HTTP/1.0 200 OK\nServer: arduino\nCache-Control: no-store, no-cache, must-revalidate\nPragma: no-cache\nConnection: close\nContent-Type: text/html\n");
+      client.print("<!DOCTYPE html PUBLIC  \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">");
+      client.print("<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\"><head><meta http-equiv=\"Content-type\" content=\"text/html;charset=UTF-8\"><title>House Temps</title></head>");
+      client.print("<body><h1>Data Received</h1><p>Go to <a href=\"http://172.16.11.220/get.html\">http://172.16.11.220/get.html</a> to view house status</p></body></html>");            
+    }
+    else if (action.equals("set"))    
     {
       setNewTemps(requestString); 
       client.println("HTTP/1.0 200 OK\nServer: arduino\nCache-Control: no-store, no-cache, must-revalidate\nPragma: no-cache\nConnection: close\nContent-Type: text/html\n");
@@ -844,12 +740,10 @@ void loop()
 
       content = constructXML();
       client.println(content);
-
-    }
+    }    
 
     client.flush();
-    client.stop();
-  
+    client.stop();  
   }
   else //keep on truckin'
   {
