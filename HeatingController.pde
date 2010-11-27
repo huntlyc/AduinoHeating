@@ -169,7 +169,9 @@ void checkZoneTemps()
   {
 
     //We don't want to heat the outside world or bathroom or kitchen, yet.
-    if (_gList.list[i].id != OUTSIDE || _gList.list[i].id != BATHROOM ||  _gList.list[i].id != KITCHEN) 
+    if ((_gList.list[i].id != OUTSIDE) && 
+        (_gList.list[i].id != BATHROOM) &&  
+        (_gList.list[i].id != KITCHEN))
     {
       //If too hot, shut off zone valve and LED.
       //else if too cold, turn on zone valve and put on led.
